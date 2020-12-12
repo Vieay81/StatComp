@@ -1,0 +1,151 @@
+---
+title: "A-20020-2020-11-03"
+output: html_document
+---
+## Question
+Exercises 7.1, 7.5, 7.8 and 7.11 (page 212-213, Statistical Computating with R).  
+
+## Answer
+#### Exercise 7.1  
+**Solution:** The jackknife estimatie of the bias and the standard error are
+\[
+\widehat{bias}_J=(n-1)(\overline{\bar X^*}_{(\cdot)}-\bar X),
+\]
+and 
+\[
+\hat{se}_J=\sqrt{\frac{n-1}{n}\sum\limits_{i=1}^n(\bar X_{(i)}-\overline{\bar X^*}_{(\cdot)})^2}.
+\]
+```{r}
+data(law, package = "bootstrap")
+n <- nrow(law)
+cor_ <- cor(law$LSAT, law$GPA)
+cor_jack <- numeric(n)
+for (i in 1:n) 
+{
+  cor_jack[i] <- cor(law$LSAT[-i], law$GPA[-i])
+}
+bias_jack <- (n-1) * (mean(cor_jack)-cor_) 
+se_jack <- sd(cor_jack) / sqrt(n) * (n-1)
+```
+By calculation, the jackknife estimatie of the bias and the standard error are `r bias_jack` and `r se_jack` respectively.
+
+#### Exercise 7.5
+**Solution:** The standard normal bootstrap CI is 
+\[
+(\bar X-z_{\alpha/2}\hat{se}(\bar X),\bar X+z_{\alpha/2}\hat{se}(\bar X))
+\],
+the basic bootstrap CI is
+\[
+(2\bar X-\bar X^*_{1-\alpha/2},2\bar X-\bar X^*_{\alpha/2})
+\],
+the percentile bootstrap CI is
+\[
+(\bar X^*_{1-\alpha/2},\bar X^*_{\alpha/2})
+\],
+and the BCa is
+\[
+(\bar X^*_{\alpha1},\bar X^*_{\alpha2}),
+\]
+where 
+\[
+\alpha_1=\Phi\left(\hat z_0+\frac{\hat z_0+z_{\alpha/2}}{1-\hat a(\hat z_0+z_{\alpha/2})}\right),
+\]
+\[
+\alpha_2=\Phi\left(\hat z_0+\frac{\hat z_0+z_{1-\alpha/2}}{1-\hat a(\hat z_0+z_{1-\alpha/2})}\right).
+\]
+\[
+\hat z_0=\Phi^{-1}\left(\frac{1}{B}\sum\limits_{b=1}^B I(\bar X^{(b)}<\bar X)\right),
+\]
+\[
+\hat a=\frac{\sum_{i=1}^n(\bar X_{(.)}-\bar X_{(i)})^3}{6\left[\sum\limits_{i=1}^n(\bar X_{(.)}-\bar X_{(i)})^2\right]^{3/2}}.
+\]
+```{r warning=FALSE}
+library(boot)
+data(aircondit, package = "boot")
+set.seed(15798)
+B <- 1000
+boot_mean <- function(x, i) mean(x[i])
+m <- boot(data = aircondit$hours, statistic = boot_mean, R = B)
+CI <- boot.ci(m, type = c("norm", "basic", "perc", "bca"))
+print(CI)
+```
+The intervals are all different, since they hey have different structures. The standard normal bootstrap CI is based on asymptotic normality, the basic bootstrap CI is based on the large sample property, the percentile bootstrap CI is by assuming $\bar X^*|X_1,...,X_n$ and $\bar X$ have approximately the same distribution, and the BCa is a bias-corrected and accelerated CI for percentile bootstrap CI.
+
+#### Exercise 7.8
+**Solution:** The jackknife estimatie of the bias and the standard error are similar with Exercise 7.1.
+```{r warning=FALSE}
+set.seed(54964)
+data(scor, package = "bootstrap")
+B <- 2000
+n <- nrow(scor)
+Sigma_ <- var(scor)
+eigen_ <- eigen(Sigma_, symmetric = T)
+theta_ <- eigen_$values[1] / sum(eigen_$values)
+Jackknife <- function(data)
+{
+  theta_jack <- numeric(n)
+  for (i in 1:n)
+  {
+    Sigma_jack <- var(scor[-i,])
+    eigen_jack <- eigen(Sigma_jack, symmetric = T)
+    theta_jack[i] <- eigen_jack$values[1] / sum(eigen_jack$values)
+  }
+  theta_jack
+}
+theta_jack <- Jackknife(data = scor)
+bias_jack <- (n-1) * (mean(theta_jack)-theta_)
+sd_jack <- sqrt((n-1) * mean((theta_jack-mean(theta_jack))^2))
+```
+By calculation, the jackknife estimatie of the bias and the standard error are `r bias_jack` and `r sd_jack` respectively.
+
+#### Exercise 7.11
+**Solution:** **Procedure to estimate prediction error by leave-two-out cross validation**
+
+1.For $k=1,...,n-1,\,l=k+1,...,n$, let observation$(x_k,y_k),(x_l,y_l)$ be the test sample and use the remaining observations to fit the model.
+
+(a)Fit the model(s) using only the $n-2$ observations in the training set, $(x_i,y_i),i\ne k,l$.
+
+(b)Compute the predicted response $\hat y_j=\hat\beta_0+\hat\beta_1x_j,j=k,l$ for the test sample.
+
+(c)Compute the squared prediction error $e_{k,l}^2=(y_k-\hat y_k)^2+(y_l-\hat y_l)^2$
+
+2.Estimate the mean of the squared prediction errors $\hat\sigma_\epsilon^2=\frac{2}{n(n-1)}\sum_{k=1}^{n-1}\sum_{l=k+1}^ne_{k,l}^2$.
+```{r message=FALSE, warning=FALSE}
+library(lattice)
+library(DAAG)
+data(ironslag)
+n <- length(ironslag$magnetic)
+e1 <- e2 <- e3 <- e4 <- matrix(nrow = n*(n-1)/2, ncol = 2)
+flag <- 1
+for (i in 1:(n-1)) 
+{
+  for (j in (i+1):n)
+  {
+    y <- ironslag$magnetic[-c(i,j)]
+    x <- ironslag$chemical[-c(i,j)]
+    lm1 <- lm(y ~ x, data = ironslag)
+    y_ <- predict(lm1, newdata = data.frame(x = ironslag$chemical[c(i,j)]))
+    e1[flag,] <- ironslag$magnetic[c(i,j)] - y_
+
+    lm2 <- lm(y ~ x + I(x^2), data = ironslag)
+    y_ <- predict(lm2, newdata = data.frame(x = ironslag$chemical[c(i,j)]))
+    e2[flag,] <- ironslag$magnetic[c(i,j)] - y_
+    
+    lm3 <- lm(log(y) ~ x, data = ironslag)
+    y_ <- predict(lm3, newdata = data.frame(x = ironslag$chemical[c(i,j)]))
+    e3[flag,] <- ironslag$magnetic[c(i,j)] - y_
+    
+    lm4 <- lm(log(y) ~ log(x), data = ironslag)
+    y_ <- predict(lm4, newdata = data.frame(x = ironslag$chemical[c(i,j)]))
+    e4[flag,] <- ironslag$magnetic[c(i,j)] - y_
+    
+    flag <- flag + 1
+  }
+}
+cat("model1 =", mean(apply(e1^2, 1, sum)),
+"model2 =", mean(apply(e2^2, 1, sum)),
+"model3 =", mean(apply(e3^2, 1, sum)),
+"model4 =", mean(apply(e4^2, 1, sum))
+)
+```
+From the result, we can see the prediction error of model2 is the lowest, so model2 is the best.

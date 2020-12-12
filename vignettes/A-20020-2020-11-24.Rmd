@@ -1,0 +1,106 @@
+---
+title: "A-20020-2020-11-24"
+output: html_document
+---
+## Question
+A-B-O blood problem, Exercises 3, 3 and 6 (page 204, 213-214, Advanced R).  
+
+## Answer
+#### A-B-O blood problem 
+The likelihood for full data is 
+\[
+L(p,q|n_{AA},n_{AO},n_{BB},n_{BO},n_{OO},n_{AB})=(p^2)^{n_{AA}}(2p(1-p-q))^{n_{AO}}(q^2)^{n_{BB}}(2q(1-p-q))^{n_{BO}}(1-p-q)^{2n_{OO}}(2pq)^{n_{AB}},
+\]
+and the corresponding log-likelihood is
+\begin{align*}
+& l(p,q|n_{AA},n_{AO},n_{BB},n_{BO},n_{OO},n_{AB}) \\
+& =n_{AA}\log(p^2)+n_{AO}\log(2p(1-p-q))+n_{BB}\log(q^2)+n_{BO}\log(2q(1-p-q))+n_{OO}\log(1-p-q)^2+n_{AB}\log(2pq).
+\end{align*}
+**E-step:**
+\begin{align*}
+& E[l(p,q|n_{AA},n_{A.},n_{BB},n_{B.},n_{OO},n_{AB})|p^{(t)},q^{(t)}]\\
+& =\frac{(p^{(t)})^2}{(p^{(t)})^2+2p^{(t)}(1-p^{(t)}-q^{(t)})}n_{A.}\log(\frac{p}{2(1-p-q)})+\frac{(q^{(t)})^2}{(q^{(t)})^2+2q^{(t)}(1-q^{(t)}-q^{(t)})}n_{B.}\log(\frac{q}{2(1-p-q)}) \\
+& +2n_{OO}\log(1-p-q)+n_{A.}\log(2p(1-p-q))+n_{B.}\log(2q(1-p-q))+n_{AB}\log(2pq),
+\end{align*}
+since $n_{AA}|(p^{(t)},q^{(t)})\sim B(n_{A.},\frac{(p^{(t)})^2}{(p^{(t)})^2+2p^{(t)}(1-p^{(t)}-q^{(t)})}),n_{BB}|(p^{(t)},q^{(t)})\sim B(n_{B.},\frac{(q^{(t)})^2}{(p^{(t)})^2+2p^{(t)}(1-p^{(t)}-q^{(t)})}).$
+
+**M-step:**
+\[
+(p^{(t+1)},q^{(t+1)})=\arg\max_{p,q}E[l(p,q|n_{AA},n_{A.},n_{BB},n_{B.},n_{OO},n_{AB})|p^{(t)},q^{(t)}].
+\]
+```{r warning=FALSE}
+Eloglike <- function(p = p_t, q = q_t) 
+    -(2*nOO*log(1-p-q) + nA.*log(p*(1-p-q)) + nB.*log(q*(1-p-q)) + nAB*log(p*q) + (p_t)/(p_t+2*r_t)*nA.*log(p/(1-p-q)) +   (q_t)/(q_t+2*r_t)*nB.*log(q/(1-p-q)))
+likelihood <- function(p_t1, q_t1, r_t1, p_t, q_t, r_t)
+  log(((p_t1/p_t)^2+2*(p_t1/p_t)*(r_t1/r_t))^nA. * ((q_t1/q_t)^2+2*(q_t1/q_t)*(r_t1/r_t))^nB. * ((r_t1/r_t)^2)^nOO * (2*(p_t1/p_t)*(q_t1/q_t))^nAB) 
+
+library(stats4)
+nA. <- 444
+nB. <- 132
+nOO <- 361
+nAB <- 63
+N <- 10000
+p_t <- q_t <- r_t <- 1/3
+eps <- .Machine$double.eps^.5
+likelihood_o <- numeric(N)
+for (i in 1:N)
+{
+  fit <- mle(Eloglike)
+  p_t1 <- fit@coef[["p"]]
+  q_t1 <- fit@coef[["q"]]
+  r_t1 <- 1 - p_t1 - q_t1
+  likelihood_o[i] <- likelihood(p_t1, q_t1, r_t1, p_t, q_t, r_t)
+  res <- sum(abs(c(p_t1, q_t1, r_t1)-c(p_t, q_t, r_t)) / c(p_t, q_t, r_t))
+  if (res < eps)
+    break
+  p_t <- p_t1
+  q_t <- q_t1
+  r_t <- r_t1
+}
+print(list("p" = p_t1, "q" = q_t1, "iterations" = i, "res" = res))
+plot(2:i, likelihood_o[2:i], type = "l", xlab = "iteration", ylab = "log-likelihood difference", main = "The difference of log-likelihoods")
+```
+
+Since the log-likelihood is too small to output, we just plot the The differences of log-likelihoods, which indicates that all the differences are positive, meaning the log-likelihoods are increasing.
+
+## Exercise 3
+```{r}
+data(mtcars)
+formulas <- list(
+mpg ~ disp,
+mpg ~ I(1 / disp),
+mpg ~ disp + wt,
+mpg ~ I(1 / disp) + wt
+)
+# for loops
+for (i in formulas)
+{
+  model <- lm(i, data = mtcars)
+  print(summary(model))
+}
+# lapply
+lm4 <- lapply(formulas, function(f) lm(f, data = mtcars))
+print(lm4)
+```
+
+## Exercise 3
+```{r}
+set.seed(3)
+random <- replicate(100, list(rpois(10, 10), rpois(7, 10)))
+locs <- 1:100
+p <- sapply(locs, function(i) t.test(random[[2*i-1]], random[[2*i]])$p.value)
+print(p)
+```
+
+## Exercise 6
+Here we give an example by the combination of Map() and vapply() to calculate the  standard-deviation of each variable. In this function, the kernel is **vapply(Map(std, x, m), unlist, numeric(1))**, in which all the arguments are needed. 
+```{r}
+data(mtcars)
+std <- function(x, x_bar) sum((x-x_bar)^2) / (length(x)-1)
+mapva <- function(x)
+{
+  m <- vapply(x, mean, numeric(1))
+  vapply(Map(std, x, m), unlist, numeric(1))
+}
+mapva(mtcars)
+```

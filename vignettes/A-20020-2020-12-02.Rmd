@@ -1,0 +1,82 @@
+---
+title: "A-20020-2020-12-02"
+output: html_document
+---
+## Question
+Write an Rcpp function for Exercises 9.4 (page 277, Statistical Computating with R).  
+
+## Answer
+The C++ code is as below:
+```
+# include <Rcpp.h>
+# include <stdlib.h>
+# include <math.h> 
+# define pi 3.1415926
+using namespace Rcpp;
+
+double randn()
+{
+  double u = ((double) rand()/(RAND_MAX));
+  double v = ((double) rand()/(RAND_MAX));
+  double z1 = sqrt((double)-2*log(u)) * cos((double)2*pi*v);
+  if (isnan(z1))
+    return (randn());
+  else
+    return (z1);
+}
+
+// [[Rcpp::export]]
+NumericVector Metropolis(double x0, double sigma, int N) 
+{
+  NumericVector x(N);
+  
+  x[0] = x0;
+  for (int i = 1; i < N; i++)
+  {
+    double y = (double)(sigma*randn() + x[i-1]);
+    double u = ((double) rand()/(RAND_MAX));
+    if (u <= (exp(-abs(y)) / exp(-abs(x[i-1]))))
+      x[i] = y;
+    else 
+    x[i] = x[i-1];
+  }
+  return (x);
+}
+```
+
+```{r}
+library(Rcpp)
+library(microbenchmark)
+dir_cpp <- "./"
+sourceCpp(paste0(dir_cpp, "Metropolis.cpp"))
+rw_Metropolis <- function(x0, sigma, N)
+{
+  x <- numeric(N)
+  x[1] <- x0
+  u <- runif(N)
+  for (i in 2:N)
+  {
+    y <- rnorm(1, x[i-1], sigma)
+    if (u[i] <= exp(-abs(y))/exp(-abs(x[i-1])))
+      x[i] <- y
+    else
+      x[i] <- x[i-1]
+  }
+  x
+}
+
+set.seed(123)
+sigma <- 2
+x0 <- 0
+N <- 2000
+xr <- rw_Metropolis(x0, sigma, N)
+xcpp <- Metropolis(x0, sigma, N)
+qqplot(xr[1001:2000], xcpp[1001:2000], main = "QQ plot")
+```
+
+The QQplot shows that the generated random numbers are in the same distribution, which means that the two algorithms could generate the same distributed random numbers. 
+```{r}
+ts <- microbenchmark(rw_Metropolis(x0, sigma, N), Metropolis(x0, sigma, N))
+summary(ts)
+```
+The result indicates that the C++ function is much more effcient than the R function.

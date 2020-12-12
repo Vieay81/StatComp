@@ -1,0 +1,17 @@
+Package: StatComp20020
+Type: Package
+Title: Final Homework for Statistical Computing
+Version: 1.0
+Date: 2020-12-09
+Author: Letian Li
+Maintainer: Letian Li <letianli1998@mail.ustc.edu.cn>
+Description: Include two functions to solve Lars and CURE (with several R and Rcpp functions for homeworks). 
+License: GPL (>= 2)
+Imports: Rcpp (>= 0.12.16), microbenchmark, knitr, rmarkdown
+LinkingTo: Rcpp
+RoxygenNote: 7.1.1
+Encoding: UTF-8
+Suggests: knitr, rmarkdown
+VignetteBuilder: knitr
+URL: https://github.com/Vieay81/StatComp20020
+BugReports: https://github.com/Vieay81/StatComp20020/issues

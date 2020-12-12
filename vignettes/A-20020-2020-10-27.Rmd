@@ -1,0 +1,242 @@
+---
+title: "A-20020-2020-10-27"
+output: html_document
+---
+## Question
+Exercises 6.7, 6.8, 6.C and a discussion (page 180-182, Statistical Computating with R).  
+
+## Answer
+#### Exercise 6.7  
+**Solution:** The hypotheses of Skewness test of normality are
+\[
+H_0:\sqrt{\beta_1}=0;\quad H_1:\sqrt{\beta_1}\ne0.
+\]
+And the test statistic is
+\begin{equation}
+\sqrt{b_1}=\frac{\frac{1}{n}\sum_{i=1}^n(X_i-\bar X)^3}{(\frac{1}{n}\sum_{i=1}^n(X_i-\bar X)^2)^{3/2}},
+\end{equation}
+which is asymptotically normal with mean 0 and variance $\frac{6(n-2)}{(n+1)(n+3)}$, and large if the distribution of $X$ is unnormal.
+
+Then the **Monte Carlo experiment to estimate power of a test against symmetric Beta(a,a) distributions (t(v) distributions)** is
+
+1.Select the particular values of the parameter a of $Beta(a,a)$ ($v$ of $t(v)$).
+
+2.For each replicate, indexed by $j=1,...,m$:
+
+(a)Generate the $j^{th}$ random sample $x_1^{(j)},...,x_n^{(j)}$ from $Beta(a,a)$ (from $t(v)$).
+
+(b)Compute the test statistic $\sqrt{b_1}$ from the $j^{th}$ sample.
+
+(c)Record the test decision: set $I_j=1$ if $H_0$ is rejected at significance level $\alpha$, and otherwise set $I_j=0$.
+
+3.Compute the proportion of significant test $\hat\pi(\theta_1)=\frac{1}{m}\sum_{j=1}^mI_j$.
+
+```{r}
+set.seed(1)
+n <- 100
+m <- 10000
+a <- c(1, 5, 20) # alternatives
+v <- c(1, 10, 100) # alternatives
+alpha <- 0.05
+cv <- qnorm(1-alpha/2, 0, sqrt(6*(n-2)/((n+1)*(n+3))))
+sk <- function(x)
+{
+  x_ <- mean(x)
+  m3 <- mean((x-x_)^3)
+  m2 <- mean((x-x_)^2)
+  m3/m2^1.5
+}
+power_beta <- power_t <- numeric(length(a))
+for (i in 1:length(a))
+{
+  # Beta(a,a)
+  sktests_beta <- replicate(m, expr = {
+    x <- rbeta(n, a[i], a[i])
+    as.integer(abs(sk(x)) >= cv)
+  })
+  power_beta[i] <- mean(sktests_beta)
+  # t(v)
+  sktests_t <- replicate(m, expr = {
+    x <- rt(n, v[i])
+    as.integer(abs(sk(x)) >= cv)
+  })
+  power_t[i] <- mean(sktests_t)
+}
+```
+Choose the sets of $a=\{1,5,20\}$ and $v=\{1,10,100\}$, and the results are as follows:
+|$Beta(a,a)$|Power|$t(v)$|Power|
+|-|-|-|-|
+|$a=1$|`r power_beta[1]`|$v=1$|`r power_t[1]`|
+|$a=5$|`r power_beta[2]`|$v=10$|`r power_t[2]`|
+|$a=20$|`r power_beta[3]`|$v=100$|`r power_t[3]`|
+
+we can see that the powers of the tests with alternative $Beta(a,a)$ distributions are really small, that means the shape of $Beta(a,a)$ distribution is similar with that of normal distribution. But the powers of the tests with alternative $t(v)$ distributions are higher than those with alternative $Beta(a,a)$ distributions, which indicates that the shape of the distributions having heavy-tail are quit different with the shape of normal distribution. In addition, the power of the tests with alternative $t(v)$ distributions grows with the increase of $v$, since the asymptotical distribution of $t$-distribution is normal.
+
+#### Exercise 6.8
+**Solution:** The **Monte Carlo experiment to estimate power of Count Five tset (and $F$-tset) against a fixed alternative** is
+
+1.Select the sample sizes represents small, medium and large.
+
+2.For each replicate, indexed by $j=1,...,m$:
+
+(a)Generate the $j^{th}$ random sample $x_1^{(j)},...,x_n^{(j)},y_1^{(j)},...,y_n^{(j)}$ from $N(0,1)$ and $N(0,1.5^2)$.
+
+(b)Compute the test statistic $\max\{\sum_{i=1}^n(x_i^{(j)}>\max(y^{(j)}))+\sum_{i=1}^n(x_i^{(j)}<\min(y^{(j)})),\sum_{i=1}^n(y_i^{(j)}>\max(x^{(j)}))+\sum_{i=1}^n(y_i^{(j)}<\min(x^{(j)}))\}$ (and $S_x^2/S_y^2$) from the $j^{th}$ sample.
+
+(c)Record the test decision: set $I_j=1$ if $H_0$ is rejected at significance level $\alpha$, and otherwise set $I_j=0$.
+
+3.Compute the proportion of significant test $\hat\pi(\theta_1)=\frac{1}{m}\sum_{j=1}^mI_j$.
+```{r}
+set.seed(2)
+sigma_1 <- 1
+sigma_2 <- 1.5
+n <- c(10, 50, 100)
+alpha <- 0.055
+m <- 10000
+count5test <- function(x, y)
+{
+  X <- x - mean(x)
+  Y <- y - mean(y)
+  outx <- sum(X > max(Y)) + sum(X < min(Y))
+  outy <- sum(Y > max(X)) + sum(Y < min(X))
+  as.integer(max(c(outx, outy)) > 5)
+}
+power_5 <- power_F <- numeric(length(n))
+for (i in 1:length(n))
+{
+  power_5[i] <- mean(replicate(m, expr = {
+  x <- rnorm(n[i], 0, sigma_1)
+  y <- rnorm(n[i], 0, sigma_2)
+  count5test(x,y)
+}))
+  pvalues <- replicate(m, expr = {
+  x <- rnorm(n[i], 0, sigma_1)
+  y <- rnorm(n[i], 0, sigma_2)
+  Ftest <- var.test(x, y)
+  Ftest$p.value
+})
+  power_F[i] <- mean(pvalues <= alpha)
+}
+```
+Choose the set of $n=\{10,50,100\}$, and the results are as follows:
+|Sample size|Count Five test|$F$-test|
+|-|-|-|
+|$n=10$|`r power_5[1]`|`r power_F[1]`|
+|$n=50$|`r power_5[2]`|`r power_F[2]`|
+|$n=100$|`r power_5[3]`|`r power_F[3]`|
+We can see that the powers of $F$-test are higher than those of Count Five test, which indicates that the $F$-test is not applicable for non-normal distribution.
+
+#### Exercise 6.C
+The hypotheses of Mardia's multivariate Skewness test of normality are
+\[
+H_0:\sqrt{\beta_{1,d}}=0;\quad H_1:\sqrt{\beta_{1,d}}\ne0.
+\]
+And the test statistic is
+\begin{equation}
+\sqrt{b_{1,d}}=\frac{1}{n^2}\sum_{i,j=1}^n((X_i-\bar X)^T\hat\Sigma^{-1}(X_j-\bar X))^3
+\end{equation}
+which is asymptotically chisquared with $d(d+1)(d+2)/6$ degrees of freedom, and large if the distribution of $X$ is unnormal.
+
+Choose the multivariate normal distribution is that with parameter $\mu=(0,0)^T$ and $\Sigma=\left(\begin{smallmatrix} 1 & 0.5 \\ 0.5 & 1 \end{smallmatrix}\right)$.
+```{r}
+library(MASS)
+set.seed(3)
+# Example 6.8
+n <- c(10, 20, 30, 50, 100, 500)
+mu0 <- rep(0,2)
+Sigma <- matrix(c(1,.5,.5,1), nrow = 2)
+d <- length(mu0)
+cv <- qchisq(c(1-.975,.975), d*(d+1)*(d+2)/6)
+multisk <- function(x)
+{
+  X <- as.matrix(x)
+  n <- dim(X)[1]
+  Sigma <- (n-1)*var(X)/n
+  S_1 <- solve(Sigma)
+  X_ <- as.matrix(apply(X, 2, mean))
+  b <- 0
+  for (i in 1:n)
+  {
+    for (j in 1:n)
+    {
+      b <- b + (t(X[i,]-X_)%*%S_1%*%(X[j,]-X_))^3
+    }
+  }
+  b/n^2
+}
+p_reject <- numeric(length(n))
+m <- 1000
+for (i in 1:length(n))
+{
+  p_reject[i] <- mean(replicate(m, expr = {
+    x <- mvrnorm(n = n[i], mu0, Sigma)
+    sk <- multisk(x)
+    as.integer(n[i]*sk/6 < cv[1] | n[i]*sk/6 > cv[2])
+  }))
+}
+```
+The estimated Type I error rate are as follows:
+
+`r print(rbind(n, p_reject))`
+
+wihch are close to the nominal level $\alpha=0.05$.
+
+Then estimate the power of the Mardia's multivariate Skewness test of normality against a contaminated normal alternative:
+\[
+(1-\epsilon)N\left(\left(\begin{smallmatrix}0\\0\end{smallmatrix}\right),\left(\begin{smallmatrix}1 & 0.5\\0.5 & 1\end{smallmatrix}\right)\right)+\epsilon N\left(\left(\begin{smallmatrix}0\\0\end{smallmatrix}\right),\left(\begin{smallmatrix}100 & 0.5\\0.5 & 100\end{smallmatrix}\right)\right),\quad0\leq\epsilon\leq1.
+\]
+```{r}
+# Example 6.10
+alpha <- .1
+n <- 30
+m <- 2500
+mu1 <- mu2 <- rep(0,2)
+Sigma1 <- matrix(c(1,.5,.5,1), nrow = 2)
+Sigma2 <- matrix(c(100,.5,.5,100), nrow = 2) 
+d <- length(mu0)
+epsilon <- c(seq(0, .15, .01), seq(.15, 1, .05))
+N <- length(epsilon)
+power_multi <- numeric(N)
+cv <- qchisq(c(alpha/2,1-alpha/2), d*(d+1)*(d+2)/6)
+for (i in 1:N)
+{
+  e <- epsilon[i]
+  power_multi[i] <- mean(replicate(m, expr = {
+    index <- sample(c(1,2), replace = T, size = n, prob = c(1-e,e))
+    x <- matrix(nrow = n, ncol = d)
+    for (j in 1:n)
+    {
+      if (index[j] == 1)
+        x[j,] <- mvrnorm(1, mu1, Sigma1)
+      else
+        x[j,] <- mvrnorm(1, mu2, Sigma2)
+    }
+    sk <- multisk(x)
+    as.integer(n*sk/6 < cv[1] | n*sk/6 > cv[2])
+  }))
+}
+plot(epsilon, power_multi, type = "b",
+     xlab = bquote(epsilon), ylim = c(0,1))
+abline(h = alpha, lty = 3)
+se <- sqrt(power_multi*(1-power_multi)/m)
+lines(epsilon, power_multi+se, lty = 3)
+lines(epsilon, power_multi-se, lty = 3)
+```
+
+The empirical power curve is shown above. Note that the power curve crosses the horizontal line corresponding to $\alpha=0.10$ at both endpoints, $\epsilon=0$ and $\epsilon =1$ where the alternative is normally distributed. For $0\leq\epsilon\leq1$ the empirical power of the test is greater than 0.10 and highest when $\epsilon$ is about 0.15.
+
+#### Discussion
+First we can not consider the two powers are different directly through inexact equality.
+
+(a)The corresponding hypothesis test problem is whether the two powers obtained by two different methods are different, that is , the hypothesess are:
+\[
+H_0:pw_1=pw_2;\quad H_1:pw_1\ne pw_2.
+\]
+
+(b)We should use Z-test, since the empirical power is a proportion that reject null hypothesis.
+
+(c)Since the test statistic is 
+\[
+Z=\frac{pw_1-pw_2}{\sqrt{\frac{pw_1(1-pw_1)}{n_1}+\frac{pw_2(1-pw_2)}{n_2}}},
+\]
+We need the sample sizes of two methods and the two estimated powers.

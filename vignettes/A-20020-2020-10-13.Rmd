@@ -1,0 +1,83 @@
+---
+title: "A-20020-2020-10-13"
+output: html_document
+---
+## Question
+Exercises 5.1, 5.7 and 5.11 (pages 149-151, Statistical Computating with R).  
+
+## Answer
+#### Exercise 5.1  
+**Solution:** First, we have
+\[
+\theta=\int_0^{\pi/3}\sin t\,dt=\int_0^{\pi/3}[(\pi/3)\sin t]\times (3/\pi)\,dt=E[(\pi/3)\sin X]=(\pi/3)E(\sin X),
+\]
+where $X\sim U[0,\pi/3]$.  
+Therefore, an algorithm by Monte Carlo method is as follow:  
+**Step1:** Generate $n$ random variates $U_i\sim U[0,1],i=1,2,...,n$;   
+**Step2:** Let $X_i=(\pi/3)U_i,i=1,2,...,n$;    
+**Step3:** Return $\hat\theta=\frac{\pi}{3n}\sum\limits_{i=1}^{n}\sin X_i$.
+```{r}
+set.seed(1)
+n <- 10000
+u <- runif(n)
+x <- (pi/3)*u
+theta_ <- (pi/3)*mean(sin(x))
+theta <- 1 - cos(pi/3)
+```
+However, the exact value of the intergral is 
+\[
+\theta=\int_0^{\pi/3}\sin t\,dt=-\cos t\bigg|_0^{\pi/3}=\cos(0)-\cos(\pi/3)=1-0.5=0.5,
+\]
+and the estimate is $\hat\theta=$ `r theta_`.
+
+### Exercise 5.7
+**solution:** First, we have
+\[
+\theta=\int_0^1e^x\,dx=\int_0^1e^x\times 1\,dx=E(e^X),
+\]
+where $X\sim U[0,1]$.
+Therefore, an algorithm by simple Monte Carlo method is as follow:  
+**Step1:** Generate $n$ random variates $X_i\sim U[0,1],i=1,2,...,n$;   
+**Step2:** Return $\hat\theta_1=\frac{1}{n}\sum\limits_{i=1}^{n}e^{X_i}$.   
+On the other hand, an algorithm by antithetic variate approach  is as follow: 
+**Step1':** Generate $n$ random variates $X_i\sim U[0,1],i=1,2,...,n$;   
+**Step2':** Return $\hat\theta_2=\frac{1}{n}\sum\limits_{i=1}^{n/2}(e^{X_i}+e^{1-X_i})$.
+```{r}
+set.seed(2)
+n <- 10000
+x1 <- runif(n)
+theta_1 <- mean(exp(x1))
+x2 <- runif(n/2)
+theta_2 <- mean(exp(x2)+exp(1-x2))/2
+m <- 1000
+MC1 <- MC2 <- numeric(m)
+for (i in 1:m)
+{
+  x1 <- runif(n)
+  x2 <- runif(n/2)
+  MC1[i] <- mean(exp(x1))
+  MC2[i] <- mean(exp(x2)+exp(1-x2))/2
+}
+var1 <- var(MC1)
+var2 <- var(MC2)
+theta <- exp(1)-1
+```
+However, the exact value of the intergral is 
+\[
+\theta=\int_0^1e^x\,dx=e^x\bigg|_0^1=e-1=1.718282,
+\]
+and the estimates by simple Monte Carlo method and by antithetic variate approach are $\hat\theta_1=$ `r theta_1` and $\hat\theta_2=$ `r theta_2`, respectively.   
+Futhermore, the empirical variance of the estimates by simple Monte Carlo method and by antithetic variate approach are $var(\hat\theta_1)=$ `r var1` and $var(\hat\theta_2)=$ `r var2`, respectively. Then the antithetic variate approach achieved approximately `r (var1-var2)/var1` reduction in variance.    
+
+## Exercise 5.11
+**solution:** Obviously, the variance of $\hat\theta_c=c\hat\theta_1+(1-c)\hat\theta_2$ is 
+\begin{align*}
+var(\hat\theta_c) & =var(c\hat\theta_1+(1-c)\hat\theta_2) \\
+& =c^2var(\hat\theta_1)+(1-c)^2var(\hat\theta_2)+2c(1-c)cov(\hat\theta_1,\hat\theta_2) \\
+& =[var(\hat\theta_1)+var(\hat\theta_2)-2cov(\hat\theta_1,\hat\theta_2)]c^2+2[cov(\hat\theta_1,\hat\theta_2)-var(\hat\theta_2)]c+var(\hat\theta_2).
+\end{align*}
+Derivate $var(\hat\theta_c)$ respect to $c$ and make it equal to 0, we have 
+\begin{align*}
+& \frac{\partial var(\hat\theta_c)}{\partial c}=2[var(\hat\theta_1)+var(\hat\theta_2)-2cov(\hat\theta_1,\hat\theta_2)]c+2[cov(\hat\theta_1,\hat\theta_2)-var(\hat\theta_2)] \\
+& \Rightarrow c* = \frac{var(\hat\theta_2)-cov(\hat\theta_1,\hat\theta_2)}{var(\hat\theta_1)+var(\hat\theta_2)-2cov(\hat\theta_1,\hat\theta_2)}=\frac{var(\hat\theta_2)-cov(\hat\theta_1,\hat\theta_2)}{var(\hat\theta_1-\hat\theta_2)}.
+\end{align*}
