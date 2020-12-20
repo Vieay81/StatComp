@@ -1,0 +1,140 @@
+---
+title: "Introduction to StatComp20020"
+author: "Letian Li"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to StatComp20020}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## Overview
+
+__StatComp20020__ is a simple R package including two R functions to solve Lars and CURE (named _Lars_ and _CURE_), and all the homeworks for the 'Statistical Computing' course. In addition, there are also some underlying functions as the basis of _Lars_ and _CURE_ (like _Lars_update_, _u_update_ and _v_update_).
+
+## Perform Lars algorithm by _Lars_
+
+The source R codes for _Lars_update_ and _Lars_ are as follows:
+```{r,eval=FALSE}
+Lars_update <- function(y, X, bt)
+{
+  p <- ncol(X)
+  # current correlations
+  c_ <- t(X) %*% (y-X%*%bt)
+  C_ <- max(abs(c_))
+  # active set
+  A <- which(abs(abs(c_)-C_) < 1e-5, arr.ind = TRUE)[,1]
+  s <- sign(c_)
+  XA <- as.matrix(X[,A]) %*% diag(s[A], nrow = length(A))
+  gA <- t(XA) %*% XA
+  m <- length(A)
+  A1 <- matrix(1, nrow = m, ncol = 1)
+  AA <- as.numeric(sqrt(t(A1) %*% solve(gA) %*% A1))
+  wA <- AA * solve(gA) %*% A1
+  # equiangular vector
+  uA <- XA %*% wA
+  # inner product vector
+  a <- t(X) %*% uA
+  if (length(A) < p)
+  {
+    index <- setdiff(c(1:p), A)
+    gamma_set <- c((C_-c_[index])/(rep(AA,length(index))-a[index]), (C_+c_[index])/(rep(AA,length(index))+a[index]))
+    gamma_set <- gamma_set[gamma_set > 0]
+    # step size
+    gamma_ <- min(gamma_set)
+  }
+  else
+    gamma_ <- 1
+  w <- matrix(0, nrow = p, ncol = 1)
+  w[A,] <- diag(s[A], nrow = length(A)) %*% wA   
+  # update
+  b <- bt + gamma_*w
+  b
+}
+
+Lars <- function(y, X)
+{
+  n <- nrow(X)
+  p <- ncol(X)
+  bt <- matrix(0, nrow = p, ncol = 1)
+  res <- list(Beta = list(), Cp = list())
+  for (t in 1:p)
+  {
+    bt <- Lars_update(y, X, bt)
+    res$Beta <- c(res$Beta, list(bt))
+  }
+  sigma <- sum((y - X%*%res$Beta[[p]])^2) / (n - p - 1)
+  for (i in 1:p)
+  {
+    RSS <- sum((y - X%*%res$Beta[[i]])^2)
+    cp <- RSS/sigma - (n-2*i) 
+    res$Cp <- c(res$Cp, list(cp))
+  }
+  res
+}
+```
+
+The _Lars_ function can perform the Lars algorithm directly. You should input the vector of response variable $\mathbf y$ and the design matrix $\mathbf X$ (without intercept by default), and the output is a list including the estimated coefficients (Beta) and CPs (Cp) for every step. Here is a example perform the Lars algorithm using the function _Lars_:
+
+```{r,eval=FALSE}
+y <- rnorm(100)
+X <- matrix(runif(500), nrow = 100)
+lar <- Lars(y, X)
+print(lar)
+```
+
+## Perform CURE algorithm by _CURE_
+
+The source R codes for _update_u_, _update_v_ and _CURE_ are as follows:
+```{r,eval=FALSE}
+library(StatComp20020)
+
+# update u
+update_u <- function(yk, X, v)
+{
+  X_u <- kronecker(v, X)
+  n <- nrow(X)
+  lar <- Lars(yk, X_u)
+  u_ <- as.matrix(lar$Beta[[which.min(lar$Cp),]], ncol = 1)
+  d <- norm2(X%*%u_) / sqrt(n)
+  u <- u_ / d
+  list(d = d, u = u)
+}
+# update v
+update_v <- function(yk, X, u)
+{
+  X_v <- kronecker(diag(1,q), X%*%u)
+  lar <- Lars(yk, X_v)
+  v_ <- as.matrix(lar$Beta[[which.min(lar$Cp),]], ncol = 1)
+  d <- norm2(v_)
+  v <- v_ / d
+  list(d = d, v = v)
+}
+
+# Lars-CURE
+CURE <- function(yk, X, d0, u0, v0, lambda, mu, eps, max_iter)
+{
+  iter <- 0
+  res <- 1
+  d <- d0
+  u <- u0
+  v <- v0
+  while ((res >= eps) & (iter < max_iter))
+  {
+    Ct <- d * u %*% t(v)
+    # update u
+    d <- update_u(yk, X, v)$d
+    u <- update_u(yk, X, v)$u
+    # update v
+    d <- update_v(yk, X, v)$d
+    v <- update_v(yk, X, v)$v
+    C <- d * u %*% t(v)
+    res <- normF(C-Ct) / normF(Ct)
+    iter = iter + 1
+  }
+  list(d = d, u = u, v = v, iter = iter)
+}
+```
+
+The _CURE_ function can perform the Co-Sparse Unit-Rank Estimation by Lars every step for updating $\mathbf u$ and $\mathbf v$. You should input many required parameters: the vector of current response variable $\mathbf y_k$, the design matrix $\mathbf X$ (without intercept by default), the initial value ($d_0,\mathbf u_0,\mathbf v_0$), the tuning parameter $\lambda$ and $\mu$, and the parameters for iteration (eps and max_iter). The output is a list including the estimates $d,\mathbf u,\mathbf v$ and the number of iterations. 
